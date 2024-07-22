@@ -106,26 +106,6 @@ export class UsersService {
 
     const {name, email, password, phone_number} = newUser.user;
 
-    const emailExists = await this.prisma.user.findUnique({
-      where: {
-        email,
-      }
-    })
-
-    if (emailExists) {
-      throw new BadRequestException('Email already exists.');
-    }
-
-    const phoneExists = await this.prisma.user.findUnique({
-      where: {
-        phone_number,
-      }
-    })
-
-    if (phoneExists) {
-      throw new BadRequestException('Phone number already exists.');
-    }
-
     const hashedPassword = await hashSync(password, 10);
 
     const user = await this.prisma.user.create({
