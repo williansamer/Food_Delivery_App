@@ -4,8 +4,9 @@ import { JwtService, JwtVerifyOptions } from '@nestjs/jwt';
 import { ActivationDto, LoginDto, RegisterDto } from './dto/user.dto';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { Response } from 'express';
-import { hashSync } from 'bcrypt';
+import { compare, hashSync } from 'bcrypt';
 import { EmailService } from './email/email.service';
+import { TokenSender } from './utils/sendToken';
 
 interface IUserData {
   name: string;
@@ -76,7 +77,7 @@ export class UsersService {
   //Create Activation Token
   async createActivationToken(user: IUserData) {
     const activationCode = Math.floor(1000 + Math.random() * 9000).toString();
-
+    
     const activationToken = await this.jwtService.sign(
       {
         user,
@@ -104,15 +105,13 @@ export class UsersService {
       throw new BadRequestException('Invalid activation code.');
     }
 
-    const {name, email, password, phone_number} = newUser.user;
-
-    const hashedPassword = await hashSync(password, 10);
+    const {name, email, password, phone_number} = newUser.user; // Não precisa encriptar o password porque no 'register' já foi encriptado e gerado/adicionado no token
 
     const user = await this.prisma.user.create({
       data: {
         name,
         email,
-        password: hashedPassword,
+        password,
         phone_number
       }
     });
@@ -123,12 +122,30 @@ export class UsersService {
   //Login Service
   async login(loginDto: LoginDto) {
     const { email, password } = loginDto;
-    const user = {
-      email,
-      password,
-    };
+    const user = await this.prisma.user.findUnique({
+      where: {
+        email
+      }
+    });
 
-    return user;
+    if (user && await this.comparePassword(password, user.password)) {
+      const tokenSender = new TokenSender(this.configService, this.jwtService);
+
+      return tokenSender.sendToken(user);
+    } else {
+      return {
+        user: null,
+        accessToken: null,
+        refreshToken: null,
+        error: {
+          message: 'Invalid email or password'
+        }
+      }
+    }
+  }
+
+  async comparePassword(password: string, hashedPassword: string): Promise<boolean> {
+    return await compare(password, hashedPassword);
   }
 
   // Get All Users Service
