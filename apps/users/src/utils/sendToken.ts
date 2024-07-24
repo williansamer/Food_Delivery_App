@@ -27,7 +27,7 @@ export class TokenSender {
         expiresIn: '3d',
       },
     );
-
+    
     return { user, accessToken, refreshToken };
   }
 }
